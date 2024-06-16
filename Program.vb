@@ -187,12 +187,6 @@ Module TextImageConverter
         Return 1
     End Function
 
-
-
-
-
-
-
     Function GetImage(url As String) As Image
         ' Loads an image from the specified file path
         Try
