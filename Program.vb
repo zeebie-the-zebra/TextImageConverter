@@ -1,7 +1,7 @@
 Imports System
 Imports System.Drawing
 Imports System.IO
-Imports System.Text ' Added for StringBuilder
+Imports System.Text
 
 Module TextImageConverter
 
@@ -18,6 +18,8 @@ Module TextImageConverter
 
     Dim textType_count As Integer = -1
     Dim timestart As DateTime = DateTime.Now
+    Dim random As New Random()
+    Dim phrase As String()
 
     Sub Main()
         ' Entry point of the program
@@ -83,25 +85,23 @@ Module TextImageConverter
         ' Convert specific configuration values to the correct types
         config("grayscale") = Convert.ToInt32(config("grayscale"))
         config("imagewidth") = Convert.ToInt32(config("imagewidth"))
-        config("phrase") = config("phrase").ToString().Split(","c)
+        phrase = config("phrase").ToString().ToCharArray().Select(Function(c) c.ToString()).ToArray()
     End Sub
 
     Function NextCharacter() As String
         ' Returns the next character based on configured text type
-        Dim HTMLcharacter() As String = CType(config("phrase"), String())
-        If HTMLcharacter.Length = 1 Then Return HTMLcharacter(0)
-        If config("texttype") = "random" Then
+        If phrase.Length = 1 Then Return phrase(0)
+
+        If config("texttype").ToString().ToLower() = "random" Then
             ' Return a random character from the list
-            Dim rand As New Random()
-            Return HTMLcharacter(rand.Next(HTMLcharacter.Length))
-        ElseIf config("texttype") = "sequence" Then
+            Return phrase(random.Next(phrase.Length))
+        ElseIf config("texttype").ToString().ToLower() = "sequence" Then
             ' Return characters sequentially
             textType_count += 1
-            If textType_count >= HTMLcharacter.Length Then
+            If textType_count >= phrase.Length Then
                 textType_count = 0
-                Return HTMLcharacter(0)
             End If
-            Return HTMLcharacter(textType_count)
+            Return phrase(textType_count)
         End If
         Return String.Empty
     End Function
