@@ -120,6 +120,108 @@ Module TextImageConverter
         End Try
     End Sub
 
+    Function AdjustBrightnessContrast(image As Image, brightness As Single, contrast As Single, saturation As Single) As Image
+        Dim tempImage As New Bitmap(image.Width, image.Height)
+        Using g As Graphics = Graphics.FromImage(tempImage)
+            Dim colorMatrix As New Imaging.ColorMatrix(New Single()() {
+            New Single() {contrast, 0, 0, 0, 0},
+            New Single() {0, contrast, 0, 0, 0},
+            New Single() {0, 0, contrast, 0, 0},
+            New Single() {0, 0, 0, 1, 0},
+            New Single() {brightness, brightness, brightness, 0, 1}
+        })
+            Using attributes As New Imaging.ImageAttributes()
+                attributes.SetColorMatrix(colorMatrix)
+                g.DrawImage(image, New Rectangle(0, 0, image.Width, image.Height), 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, attributes)
+            End Using
+        End Using
+
+        ' Enhance color saturation
+        Dim hsvImage As New Bitmap(tempImage.Width, tempImage.Height)
+        For y As Integer = 0 To tempImage.Height - 1
+            For x As Integer = 0 To tempImage.Width - 1
+                Dim pixelColor As Color = tempImage.GetPixel(x, y)
+                Dim h As Single, s As Single, v As Single
+                ColorToHSV(pixelColor, h, s, v)
+                s *= saturation
+                If s > 1 Then s = 1
+                Dim newColor As Color = ColorFromHSV(h, s, v)
+                hsvImage.SetPixel(x, y, newColor)
+            Next
+        Next
+
+        Return hsvImage
+    End Function
+
+    ' Converts a Color from RGB to HSV representation.
+    Sub ColorToHSV(color As Color, ByRef hue As Single, ByRef saturation As Single, ByRef value As Single)
+        ' Determine the maximum and minimum values of RGB components.
+        Dim max As Single = Math.Max(color.R, Math.Max(color.G, color.B))
+        Dim min As Single = Math.Min(color.R, Math.Min(color.G, color.B))
+
+        ' Calculate the hue value (normalized to [0, 1]).
+        hue = color.GetHue() / 360.0F
+
+        ' Calculate the saturation value.
+        If max = 0 Then
+            saturation = 0
+        Else
+            saturation = 1.0F - (1.0F * min / max)
+        End If
+
+        ' Calculate the value (brightness) value.
+        value = max / 255.0F
+    End Sub
+
+    ' Converts HSV values back to a Color in RGB representation.
+    Function ColorFromHSV(hue As Single, saturation As Single, value As Single) As Color
+        ' Convert hue from [0, 1] to degrees [0, 360].
+        Dim h As Integer = CInt(hue * 360)
+        Dim s As Single = saturation
+        Dim v As Single = value
+
+        ' Calculate chroma (color intensity).
+        Dim c As Single = v * s
+        ' Calculate intermediate value x.
+        Dim x As Single = c * (1 - Math.Abs((h / 60) Mod 2 - 1))
+        ' Calculate brightness modifier m.
+        Dim m As Single = v - c
+
+        ' Initialize RGB components.
+        Dim r As Single, g As Single, b As Single
+
+        ' Determine RGB values based on hue range.
+        If h >= 0 And h < 60 Then
+            r = c
+            g = x
+            b = 0
+        ElseIf h >= 60 And h < 120 Then
+            r = x
+            g = c
+            b = 0
+        ElseIf h >= 120 And h < 180 Then
+            r = 0
+            g = c
+            b = x
+        ElseIf h >= 180 And h < 240 Then
+            r = 0
+            g = x
+            b = c
+        ElseIf h >= 240 And h < 300 Then
+            r = x
+            g = 0
+            b = c
+        Else
+            r = c
+            g = 0
+            b = x
+        End If
+
+        ' Convert the calculated RGB values to a Color object.
+        Return Color.FromArgb(CInt((r + m) * 255), CInt((g + m) * 255), CInt((b + m) * 255))
+    End Function
+
+
     Function ConvertImage(filename As String) As Integer
         Console.WriteLine($"Converting {filename}...")
         Dim output As String = String.Empty
@@ -129,6 +231,9 @@ Module TextImageConverter
             Console.WriteLine($"Error: Could not load image {filename}")
             Return 0
         End If
+
+        ' Adjust brightness, contrast, and saturation
+        image = AdjustBrightnessContrast(image, 0.1F, 1.2F, 1.5F)
 
         If config("grayscale") = 1 Then
             image = ConvertToGrayscale(image)
@@ -187,6 +292,9 @@ Module TextImageConverter
         Return 1
     End Function
 
+
+
+
     Function GetImage(url As String) As Image
         ' Loads an image from the specified file path
         Try
@@ -217,7 +325,6 @@ Module TextImageConverter
     End Function
 
     Function ResizeImage(image As Image, width As Integer, height As Integer) As Image
-        ' Resizes the given image to the specified dimensions
         Dim newBitmap As New Bitmap(width, height)
         Using g As Graphics = Graphics.FromImage(newBitmap)
             g.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
