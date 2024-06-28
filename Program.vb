@@ -124,12 +124,12 @@ Module TextImageConverter
         Dim tempImage As New Bitmap(image.Width, image.Height)
         Using g As Graphics = Graphics.FromImage(tempImage)
             Dim colorMatrix As New Imaging.ColorMatrix(New Single()() {
-            New Single() {contrast, 0, 0, 0, 0},
-            New Single() {0, contrast, 0, 0, 0},
-            New Single() {0, 0, contrast, 0, 0},
-            New Single() {0, 0, 0, 1, 0},
-            New Single() {brightness, brightness, brightness, 0, 1}
-        })
+                New Single() {contrast, 0, 0, 0, 0},
+                New Single() {0, contrast, 0, 0, 0},
+                New Single() {0, 0, contrast, 0, 0},
+                New Single() {0, 0, 0, 1, 0},
+                New Single() {0, 0, 0, 0, 1}
+            })
             Using attributes As New Imaging.ImageAttributes()
                 attributes.SetColorMatrix(colorMatrix)
                 g.DrawImage(image, New Rectangle(0, 0, image.Width, image.Height), 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, attributes)
@@ -221,7 +221,6 @@ Module TextImageConverter
         Return Color.FromArgb(CInt((r + m) * 255), CInt((g + m) * 255), CInt((b + m) * 255))
     End Function
 
-
     Function ConvertImage(filename As String) As Integer
         Console.WriteLine($"Converting {filename}...")
         Dim output As String = String.Empty
@@ -233,37 +232,28 @@ Module TextImageConverter
         End If
 
         ' Adjust brightness, contrast, and saturation
-        image = AdjustBrightnessContrast(image, 0.1F, 1.2F, 1.5F)
+        image = AdjustBrightnessContrast(image, 0.0F, 1.2F, 1.5F)
 
         If config("grayscale") = 1 Then
             image = ConvertToGrayscale(image)
         End If
 
-        ' Calculate new height to maintain aspect ratio
-        Dim newWidth As Integer = config("imagewidth")
-        Dim aspectRatio As Double = CDbl(image.Height) / CDbl(image.Width)
-        Dim newHeight As Integer = CInt(newWidth * aspectRatio * 0.65) ' Adjust for character aspect ratio
-
-        ' Debugging: Print out new dimensions
-        Console.WriteLine($"Resizing image to: {newWidth}x{newHeight}")
-
-        image = ResizeImage(image, newWidth, newHeight)
-
-        output &= $"<HTML>{Environment.NewLine}<HEAD>{Environment.NewLine}<TITLE>{Path.GetFileName(filename)}</TITLE>{Environment.NewLine}</HEAD>{Environment.NewLine}<BODY BGCOLOR={config("bgcolor")}>{Environment.NewLine}<center><table align=""center"" cellpadding=""10"">{Environment.NewLine}<tr>{Environment.NewLine}<td><font size={config("fontsize")}><pre><br>{Environment.NewLine}"
-
-        Dim width As Integer = image.Width
         Dim height As Integer = image.Height
+        Dim width As Integer = image.Width
+        If width > config("imagewidth") Then
+            height = CInt(image.Height * config("imagewidth") / image.Width)
+            width = CInt(config("imagewidth"))
+            image = ResizeImage(image, width, height)
+        End If
 
-        ' Debugging: Print out image dimensions
-        Console.WriteLine($"Image dimensions: {width}x{height}")
-
-        Dim oldcolours As Color = Color.FromArgb(-1)
+        Dim oldColors As Color = Color.FromArgb(-1)
+        output &= "<html><head><style>body{font-family:Courier;background-color:" & config("bgcolor") & ";color:white;font-size:" & config("fontsize") & ";}</style></head><body>"
 
         For y As Integer = 0 To height - 1
-            Dim line As String = ""
+            Dim line As String = String.Empty
             For x As Integer = 0 To width - 1
                 Dim pixelColor As Color = CType(image, Bitmap).GetPixel(x, y)
-                If Not pixelColor.Equals(oldcolours) Then
+                If Not pixelColor.Equals(oldColors) Then
                     If x = 0 Then
                         line &= $"<font color=#{pixelColor.R:X2}{pixelColor.G:X2}{pixelColor.B:X2}>{NextCharacter()}"
                     Else
@@ -272,41 +262,41 @@ Module TextImageConverter
                 Else
                     line &= NextCharacter()
                 End If
-                oldcolours = pixelColor
+                oldColors = pixelColor
             Next
-            oldcolours = Color.FromArgb(-1)
+            oldColors = Color.FromArgb(-1)
             line &= "</font><br>"
             output &= line
         Next
 
-        output &= $"{Environment.NewLine}</pre></font></td>{Environment.NewLine}</tr>{Environment.NewLine}</table></center>{Environment.NewLine}</BODY></HTML>{Environment.NewLine}"
+        output &= "</body></html>"
 
-        Try
-            File.WriteAllText($"./HTML/{Path.GetFileNameWithoutExtension(filename)}.html", output)
-            Console.WriteLine($"Successfully converted {filename}")
-        Catch ex As Exception
-            Console.WriteLine($"Error writing HTML file for {filename}: {ex.Message}")
-            Return 0
-        End Try
-
+        Dim outputFilename As String = $"./HTML/{Path.GetFileNameWithoutExtension(filename)}.html"
+        File.WriteAllText(outputFilename, output, Encoding.UTF8)
+        Console.WriteLine($"Saved {outputFilename}")
         Return 1
     End Function
 
+    Function ResizeImage(image As Image, width As Integer, height As Integer) As Image
+        ' Resize image to the specified width and height
+        Dim newImage As New Bitmap(width, height)
+        Using g As Graphics = Graphics.FromImage(newImage)
+            g.DrawImage(image, 0, 0, width, height)
+        End Using
+        Return newImage
+    End Function
 
-
-
-    Function GetImage(url As String) As Image
-        ' Loads an image from the specified file path
+    Function GetImage(filename As String) As Image
+        ' Load image from file
         Try
-            Return Image.FromFile(url)
+            Return Image.FromFile(filename)
         Catch ex As Exception
-            Console.WriteLine($"Error loading image {url}: {ex.Message}")
+            LogToFile($"Error loading image: {ex.Message}")
             Return Nothing
         End Try
     End Function
 
     Function ConvertToGrayscale(original As Image) As Image
-        ' Converts the given image to grayscale
         Dim newBitmap As New Bitmap(original.Width, original.Height)
         Using g As Graphics = Graphics.FromImage(newBitmap)
             Dim colorMatrix As New Imaging.ColorMatrix(New Single()() {
@@ -320,15 +310,6 @@ Module TextImageConverter
                 attributes.SetColorMatrix(colorMatrix)
                 g.DrawImage(original, New Rectangle(0, 0, original.Width, original.Height), 0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes)
             End Using
-        End Using
-        Return newBitmap
-    End Function
-
-    Function ResizeImage(image As Image, width As Integer, height As Integer) As Image
-        Dim newBitmap As New Bitmap(width, height)
-        Using g As Graphics = Graphics.FromImage(newBitmap)
-            g.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
-            g.DrawImage(image, 0, 0, width, height)
         End Using
         Return newBitmap
     End Function
